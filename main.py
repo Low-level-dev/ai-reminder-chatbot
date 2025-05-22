@@ -1,11 +1,10 @@
 import streamlit as st
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 
 st.set_page_config(page_title="Smart Reminder Bot")
-
 st.title("🤖 Smart Reminder Bot")
 
 # Load or create reminders
@@ -23,6 +22,9 @@ def save_reminders():
 def today_str():
     return datetime.now().strftime("%Y-%m-%d")
 
+def tomorrow_str():
+    return (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
 def extract_date(text):
     match = re.search(r"(\d+)\s*tarik", text)
     if match:
@@ -38,11 +40,25 @@ def extract_date(text):
 def process_input(user_text):
     text = user_text.strip().lower()
 
-    # Show today’s tasks
-    if text == "ajke ki ki ase ?":
+    # Show today's tasks
+    if "ajke ki ki ase" in text:
         today = today_str()
         tasks = [f"{i+1}. {r['text']}" for i, r in enumerate(reminders) if r["date"] == today]
         return "\n".join(tasks) if tasks else "No tasks for today."
+
+    # Show tomorrow's tasks
+    if "kalke ki ki ase" in text:
+        tomorrow = tomorrow_str()
+        tasks = [f"{i+1}. {r['text']}" for i, r in enumerate(reminders) if r["date"] == tomorrow]
+        return "\n".join(tasks) if tasks else "No tasks for tomorrow."
+
+    # Show tasks by date like "25 tarik a ki ki ase?"
+    if re.search(r"\d+\s*tarik.*ki ki ase", text):
+        date = extract_date(text)
+        if not date:
+            return "Couldn't understand the date."
+        tasks = [f"{i+1}. {r['text']}" for i, r in enumerate(reminders) if r["date"] == date]
+        return "\n".join(tasks) if tasks else f"No tasks for {date}."
 
     # Delete a task
     if text.startswith("delete "):
