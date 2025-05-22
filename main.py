@@ -1,8 +1,8 @@
 import streamlit as st
 import json
 import os
-from datetime import datetime, timedelta
-import dateparser
+from datetime import datetime
+import re
 
 st.title("🤖 Smart Reminder Bot")
 
@@ -19,6 +19,30 @@ def save_reminders():
     with open("reminders.json", "w") as f:
         json.dump(reminders, f, indent=2)
 
+# Get today's date string
+def today_str():
+    return datetime.now().strftime("%Y-%m-%d")
+
+# Parse date from "25 tarik"
+def extract_date(user_text):
+    match = re.search(r'(\d+)\s*tarik', user_text)
+    if match:
+        day = int(match.group(1))
+        try:
+            now = datetime.now()
+            task_date = datetime(now.year, now.month, day)
+            return task_date.strftime("%Y-%m-%d")
+        except:
+            return None
+    return None
+
+# Parse time from "10 tai"
+def extract_time(user_text):
+    match = re.search(r'(\d+)\s*tai', user_text)
+    if match:
+        return match.group(1) + " tai"
+    return ""
+
 # Show all reminders
 def show_all():
     if not reminders:
@@ -28,34 +52,32 @@ def show_all():
         lines.append(f"{i}. {task['text']} ({task['date']})")
     return "\n".join(lines)
 
-# Edit a reminder
+# Edit a task
 def edit_task(index, new_text):
-    if index < 1 or index > len(reminders):
-        return "Invalid task number."
-    parsed_date = dateparser.parse(new_text, languages=["bn", "en"])
-    if not parsed_date:
-        return "Date bujhte parini. Try again with a clear date."
+    date = extract_date(new_text)
+    if not date:
+        return "Tarik bujhte parini. Example: 25 tarik"
     reminders[index - 1] = {
         "text": new_text,
-        "date": parsed_date.strftime("%Y-%m-%d")
+        "date": date
     }
     save_reminders()
     return f"Task {index} edit kora hoyeche."
 
-# Delete a reminder
+# Delete a task
 def delete_task(index):
     if index < 1 or index > len(reminders):
         return "Invalid task number."
     removed = reminders.pop(index - 1)
     save_reminders()
-    return f"Task delete kora hoyeche: {removed['text']}"
+    return f"Task delete kora holo: {removed['text']}"
 
 # Process input
 def process_input(user_text):
-    global editing_mode, editing_index
-
-    if user_text.lower().strip() == "shob task dekhao":
-        return show_all()
+    if user_text.strip() == "ajke ki ki ase ?":
+        today = today_str()
+        today_tasks = [f"{i+1}. {r['text']}" for i, r in enumerate(reminders) if r["date"] == today]
+        return "Ajker task:\n" + "\n".join(today_tasks) if today_tasks else "Ajke kono task nei."
 
     if user_text.lower().startswith("delete"):
         try:
@@ -69,7 +91,7 @@ def process_input(user_text):
             index = int(user_text.split()[1])
             st.session_state.editing_index = index
             st.session_state.editing_mode = True
-            return f"Type your new task for number {index}:"
+            return f"Task {index} edit korte chaile notun task bolo:"
         except:
             return "Edit er jonno likho: edit [number]"
 
@@ -78,32 +100,19 @@ def process_input(user_text):
         st.session_state.editing_mode = False
         return edit_task(index, user_text)
 
-    parsed_date = dateparser.parse(user_text, languages=['bn', 'en'])
+    # Otherwise assume it's a new task to save
+    date = extract_date(user_text)
+    if not date:
+        return "Tarik bujhte parini. Example: 25 tarik a class ase"
 
-    if "mone rakh" in user_text or "mone rakhis" in user_text:
-        if parsed_date:
-            reminders.append({
-                "text": user_text,
-                "date": parsed_date.strftime("%Y-%m-%d")
-            })
-            save_reminders()
-            return f"Thik ache. Mone rekhechi: {user_text}"
-        else:
-            return "Tarik bujhte parini. '25 tarik', 'ajke', 'kalke' use koro."
+    reminders.append({
+        "text": user_text,
+        "date": date
+    })
+    save_reminders()
+    return f"Task mone rekhechi: {user_text}"
 
-    elif "ajke" in user_text:
-        today = datetime.now().strftime("%Y-%m-%d")
-        today_tasks = [r["text"] for r in reminders if r["date"] == today]
-        return "Ajker kaj:\n" + "\n".join(today_tasks) if today_tasks else "Ajke kono kaj nei."
-
-    elif "kalke" in user_text:
-        tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-        tasks = [r["text"] for r in reminders if r["date"] == tomorrow]
-        return "Kalker kaj:\n" + "\n".join(tasks) if tasks else "Kal kono kaj nei."
-
-    return "Bujhte parlam na. Arktu clear kore bolo."
-
-# Input UI
+# Streamlit input
 user_input = st.text_input("Tumi ki bolte chao?")
 
 if user_input:
